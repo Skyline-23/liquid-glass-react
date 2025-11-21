@@ -263,6 +263,7 @@ interface LiquidGlassProps {
   overLight?: boolean
   mode?: "standard" | "polar" | "prominent" | "shader"
   onClick?: () => void
+  centered?: boolean
 }
 
 export default function LiquidGlass({
@@ -282,6 +283,7 @@ export default function LiquidGlass({
   style = {},
   mode = "standard",
   onClick,
+  centered = true,
 }: LiquidGlassProps) {
   const glassRef = useRef<HTMLDivElement>(null)
   const [isHovered, setIsHovered] = useState(false)
@@ -441,50 +443,52 @@ export default function LiquidGlass({
     return () => window.removeEventListener("resize", updateGlassSize)
   }, [])
 
-  const transformStyle = `translate(calc(-50% + ${calculateElasticTranslation().x}px), calc(-50% + ${calculateElasticTranslation().y}px)) ${isActive && Boolean(onClick) ? "scale(0.96)" : calculateDirectionalScale()}`
+  const elasticTranslation = calculateElasticTranslation()
+  const translatePart = centered
+    ? `translate(calc(-50% + ${elasticTranslation.x}px), calc(-50% + ${elasticTranslation.y}px))`
+    : `translate(${elasticTranslation.x}px, ${elasticTranslation.y}px)`
+  const scalePart = isActive && Boolean(onClick) ? "scale(0.96)" : calculateDirectionalScale()
+  const computedTransform = `${translatePart} ${scalePart}`
+  const resolvedTransform = style.transform ?? computedTransform
 
-  const baseStyle = {
+  const wrapperStyle: React.CSSProperties = {
+    position: style.position ?? "relative",
+    display: style.display ?? "inline-block",
+    transition: style.transition ?? "all ease-out 0.2s",
     ...style,
-    transform: transformStyle,
-    transition: "all ease-out 0.2s",
+    top: style.top ?? (centered ? "50%" : undefined),
+    left: style.left ?? (centered ? "50%" : undefined),
+    transform: resolvedTransform,
   }
 
-  const positionStyles = {
-    position: baseStyle.position || "relative",
-    top: baseStyle.top || "50%",
-    left: baseStyle.left || "50%",
+  const overlayBaseStyle: React.CSSProperties = {
+    position: "absolute",
+    inset: 0,
+    borderRadius: `${cornerRadius}px`,
+    pointerEvents: "none",
+    transition: wrapperStyle.transition,
   }
 
   return (
-    <>
+    <div className={className} style={wrapperStyle}>
       {/* Over light effect */}
       <div
         className={`bg-black transition-all duration-150 ease-in-out pointer-events-none ${overLight ? "opacity-20" : "opacity-0"}`}
         style={{
-          ...positionStyles,
-          height: glassSize.height,
-          width: glassSize.width,
-          borderRadius: `${cornerRadius}px`,
-          transform: baseStyle.transform,
-          transition: baseStyle.transition,
+          ...overlayBaseStyle,
         }}
       />
       <div
         className={`bg-black transition-all duration-150 ease-in-out pointer-events-none mix-blend-overlay ${overLight ? "opacity-100" : "opacity-0"}`}
         style={{
-          ...positionStyles,
-          height: glassSize.height,
-          width: glassSize.width,
-          borderRadius: `${cornerRadius}px`,
-          transform: baseStyle.transform,
-          transition: baseStyle.transition,
+          ...overlayBaseStyle,
         }}
       />
 
       <GlassContainer
         ref={glassRef}
         className={className}
-        style={baseStyle}
+        style={{ position: "relative", width: "100%", height: "100%" }}
         cornerRadius={cornerRadius}
         displacementScale={overLight ? displacementScale * 0.5 : displacementScale}
         blurAmount={blurAmount}
@@ -508,13 +512,7 @@ export default function LiquidGlass({
       {/* Border layer 1 - extracted from glass container */}
       <span
         style={{
-          ...positionStyles,
-          height: glassSize.height,
-          width: glassSize.width,
-          borderRadius: `${cornerRadius}px`,
-          transform: baseStyle.transform,
-          transition: baseStyle.transition,
-          pointerEvents: "none",
+          ...overlayBaseStyle,
           mixBlendMode: "screen",
           opacity: 0.2,
           padding: "1.5px",
@@ -535,13 +533,7 @@ export default function LiquidGlass({
       {/* Border layer 2 - duplicate with mix-blend-overlay */}
       <span
         style={{
-          ...positionStyles,
-          height: glassSize.height,
-          width: glassSize.width,
-          borderRadius: `${cornerRadius}px`,
-          transform: baseStyle.transform,
-          transition: baseStyle.transition,
-          pointerEvents: "none",
+          ...overlayBaseStyle,
           mixBlendMode: "overlay",
           padding: "1.5px",
           WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
@@ -563,13 +555,7 @@ export default function LiquidGlass({
         <>
           <div
             style={{
-              ...positionStyles,
-              height: glassSize.height,
-              width: glassSize.width + 1,
-              borderRadius: `${cornerRadius}px`,
-              transform: baseStyle.transform,
-              pointerEvents: "none",
-              transition: "all 0.2s ease-out",
+              ...overlayBaseStyle,
               opacity: isHovered || isActive ? 0.5 : 0,
               backgroundImage: "radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 50%)",
               mixBlendMode: "overlay",
@@ -577,13 +563,7 @@ export default function LiquidGlass({
           />
           <div
             style={{
-              ...positionStyles,
-              height: glassSize.height,
-              width: glassSize.width + 1,
-              borderRadius: `${cornerRadius}px`,
-              transform: baseStyle.transform,
-              pointerEvents: "none",
-              transition: "all 0.2s ease-out",
+              ...overlayBaseStyle,
               opacity: isActive ? 0.5 : 0,
               backgroundImage: "radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0) 80%)",
               mixBlendMode: "overlay",
@@ -591,15 +571,7 @@ export default function LiquidGlass({
           />
           <div
             style={{
-              ...baseStyle,
-              height: glassSize.height,
-              width: glassSize.width + 1,
-              borderRadius: `${cornerRadius}px`,
-              position: baseStyle.position,
-              top: baseStyle.top,
-              left: baseStyle.left,
-              pointerEvents: "none",
-              transition: "all 0.2s ease-out",
+              ...overlayBaseStyle,
               opacity: isHovered ? 0.4 : isActive ? 0.8 : 0,
               backgroundImage: "radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0) 100%)",
               mixBlendMode: "overlay",
@@ -607,6 +579,6 @@ export default function LiquidGlass({
           />
         </>
       )}
-    </>
+    </div>
   )
 }
