@@ -481,6 +481,9 @@ export default function LiquidGlass({
     right: baseStyle.right,
     bottom: baseStyle.bottom,
   }
+  const overlayBaseColor = "rgba(12, 16, 28, 0.75)"
+  const overlaySoftOpacity = overLight ? 0.14 : 0
+  const overlayBlendOpacity = overLight ? 0.32 : 0
 
   return (
     <>
@@ -511,7 +514,7 @@ export default function LiquidGlass({
 
       {/* Over light effect */}
       <div
-        className={`bg-black transition-all duration-150 ease-in-out pointer-events-none ${overLight ? "opacity-20" : "opacity-0"}`}
+        className="transition-all duration-150 ease-in-out pointer-events-none"
         style={{
           ...positionStyles,
           height: glassSize.height,
@@ -519,10 +522,12 @@ export default function LiquidGlass({
           borderRadius: `${cornerRadius}px`,
           transform: baseStyle.transform,
           transition: baseStyle.transition,
+          backgroundColor: overlayBaseColor,
+          opacity: overlaySoftOpacity,
         }}
       />
       <div
-        className={`bg-black transition-all duration-150 ease-in-out pointer-events-none mix-blend-overlay ${overLight ? "opacity-100" : "opacity-0"}`}
+        className="transition-all duration-150 ease-in-out pointer-events-none"
         style={{
           ...positionStyles,
           height: glassSize.height,
@@ -530,6 +535,9 @@ export default function LiquidGlass({
           borderRadius: `${cornerRadius}px`,
           transform: baseStyle.transform,
           transition: baseStyle.transition,
+          backgroundColor: overlayBaseColor,
+          opacity: overlayBlendOpacity,
+          mixBlendMode: "overlay",
         }}
       />
 
