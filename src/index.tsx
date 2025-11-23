@@ -238,7 +238,7 @@ interface LiquidGlassProps {
   overLight?: boolean
   mode?: "standard" | "polar" | "prominent" | "shader"
   onClick?: () => void
-  containerRef?: React.RefObject<HTMLDivElement | null> | null
+  containerRef?: React.MutableRefObject<HTMLDivElement | null> | null
   centered?: boolean
   axisCenter?: "both" | "x" | "y" | "none"
   glassSize?: { width: number; height: number }
