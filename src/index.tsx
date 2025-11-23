@@ -603,7 +603,7 @@ export default function LiquidGlass({
           style={{
             ...overlayFrameStyles,
             mixBlendMode: "screen",
-            opacity: 0.2,
+            opacity: overLight ? 0.2 : 0.05,
             padding: "1.5px",
             WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
             WebkitMaskComposite: "xor",
@@ -612,8 +612,8 @@ export default function LiquidGlass({
             background: `linear-gradient(
           ${135 + mouseOffset.x * 1.2}deg,
           rgba(255, 255, 255, 0.0) 0%,
-          rgba(255, 255, 255, ${0.12 + Math.abs(mouseOffset.x) * 0.008}) ${Math.max(10, 33 + mouseOffset.y * 0.3)}%,
-          rgba(255, 255, 255, ${0.4 + Math.abs(mouseOffset.x) * 0.012}) ${Math.min(90, 66 + mouseOffset.y * 0.4)}%,
+          rgba(255, 255, 255, ${(0.12 + Math.abs(mouseOffset.x) * 0.008) * (overLight ? 1 : 0.35)}) ${Math.max(10, 33 + mouseOffset.y * 0.3)}%,
+          rgba(255, 255, 255, ${(0.4 + Math.abs(mouseOffset.x) * 0.012) * (overLight ? 1 : 0.35)}) ${Math.min(90, 66 + mouseOffset.y * 0.4)}%,
           rgba(255, 255, 255, 0.0) 100%
         )`,
           }}
@@ -632,8 +632,8 @@ export default function LiquidGlass({
             background: `linear-gradient(
           ${135 + mouseOffset.x * 1.2}deg,
           rgba(255, 255, 255, 0.0) 0%,
-          rgba(255, 255, 255, ${0.32 + Math.abs(mouseOffset.x) * 0.008}) ${Math.max(10, 33 + mouseOffset.y * 0.3)}%,
-          rgba(255, 255, 255, ${0.6 + Math.abs(mouseOffset.x) * 0.012}) ${Math.min(90, 66 + mouseOffset.y * 0.4)}%,
+          rgba(255, 255, 255, ${(0.32 + Math.abs(mouseOffset.x) * 0.008) * (overLight ? 1 : 0.35)}) ${Math.max(10, 33 + mouseOffset.y * 0.3)}%,
+          rgba(255, 255, 255, ${(0.6 + Math.abs(mouseOffset.x) * 0.012) * (overLight ? 1 : 0.35)}) ${Math.min(90, 66 + mouseOffset.y * 0.4)}%,
           rgba(255, 255, 255, 0.0) 100%
         )`,
           }}
