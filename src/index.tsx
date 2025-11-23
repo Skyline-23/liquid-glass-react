@@ -289,10 +289,24 @@ export default function LiquidGlass({
   centered = true,
   axisCenter = "xy",
 }: LiquidGlassProps) {
+  const resolveLength = (v?: string | number): number | null => {
+    if (v === undefined || v === null) return null
+    if (typeof v === "number") return Number.isFinite(v) ? v : null
+    const trimmed = v.trim().toLowerCase()
+    if (!trimmed) return null
+    const pxMatch = trimmed.match(/^(-?\d+(?:\.\d+)?)(px)?$/)
+    return pxMatch ? parseFloat(pxMatch[1]) : null
+  }
+
+  const explicitWidth = resolveLength(style.width)
+  const explicitHeight = resolveLength(style.height)
   const glassRef = useRef<HTMLDivElement>(null)
   const [isHovered, setIsHovered] = useState(false)
   const [isActive, setIsActive] = useState(false)
-  const [glassSize, setGlassSize] = useState({ width: 270, height: 69 })
+  const [glassSize, setGlassSize] = useState({
+    width: explicitWidth ?? 270,
+    height: explicitHeight ?? 69,
+  })
   const [internalGlobalMousePos, setInternalGlobalMousePos] = useState({ x: 0, y: 0 })
   const [internalMouseOffset, setInternalMouseOffset] = useState({ x: 0, y: 0 })
 
@@ -436,16 +450,31 @@ export default function LiquidGlass({
   // Update glass size whenever component mounts or window resizes
   useEffect(() => {
     const updateGlassSize = () => {
-      if (glassRef.current) {
-        const rect = glassRef.current.getBoundingClientRect()
-        setGlassSize({ width: rect.width, height: rect.height })
+      if (explicitWidth || explicitHeight) {
+        setGlassSize((prev) => ({
+          width: explicitWidth ?? prev.width,
+          height: explicitHeight ?? prev.height,
+        }))
+        return
       }
+      const node = glassRef.current
+      if (!node) return
+      const width = Math.round(node.offsetWidth || node.getBoundingClientRect().width)
+      const height = Math.round(node.offsetHeight || node.getBoundingClientRect().height)
+      if (!width || !height) return
+      setGlassSize({ width, height })
     }
 
     updateGlassSize()
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(updateGlassSize)
+      const node = glassRef.current
+      if (node) observer.observe(node)
+      return () => observer.disconnect()
+    }
     window.addEventListener("resize", updateGlassSize)
     return () => window.removeEventListener("resize", updateGlassSize)
-  }, [])
+  }, [explicitHeight, explicitWidth])
 
   const elasticTranslation = calculateElasticTranslation()
   const baseTranslate =
@@ -481,6 +510,35 @@ export default function LiquidGlass({
     right: baseStyle.right,
     bottom: baseStyle.bottom,
   }
+
+  useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.log(`[LiquidGlass debug:${className || "unnamed"}]`, {
+      mode,
+      baseTransform: baseStyle.transform,
+      position: {
+        top: baseStyle.top,
+        left: baseStyle.left,
+        right: baseStyle.right,
+        bottom: baseStyle.bottom,
+      },
+      glassSize,
+      width: style.width,
+      height: style.height,
+    })
+  }, [
+    className,
+    mode,
+    baseStyle.transform,
+    baseStyle.top,
+    baseStyle.left,
+    baseStyle.right,
+    baseStyle.bottom,
+    glassSize.width,
+    glassSize.height,
+    style.width,
+    style.height,
+  ])
   const overlayBaseColor = "rgba(12, 16, 28, 0.75)"
   const overlaySoftOpacity = overLight ? 0.14 : 0
   const overlayBlendOpacity = overLight ? 0.32 : 0
@@ -601,7 +659,7 @@ export default function LiquidGlass({
             style={{
               ...positionStyles,
               height: glassSize.height,
-              width: glassSize.width + 1,
+              width: glassSize.width,
               borderRadius: `${cornerRadius}px`,
               transform: baseStyle.transform,
               pointerEvents: "none",
@@ -615,7 +673,7 @@ export default function LiquidGlass({
             style={{
               ...positionStyles,
               height: glassSize.height,
-              width: glassSize.width + 1,
+              width: glassSize.width,
               borderRadius: `${cornerRadius}px`,
               transform: baseStyle.transform,
               pointerEvents: "none",
@@ -629,7 +687,7 @@ export default function LiquidGlass({
             style={{
               ...baseStyle,
               height: glassSize.height,
-              width: glassSize.width + 1,
+              width: glassSize.width,
               borderRadius: `${cornerRadius}px`,
               position: baseStyle.position,
               top: baseStyle.top,
