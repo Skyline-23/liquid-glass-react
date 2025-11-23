@@ -510,6 +510,32 @@ export default function LiquidGlass({
     right: baseStyle.right,
     bottom: baseStyle.bottom,
   }
+  const wrapperStyle: React.CSSProperties = {
+    position: baseStyle.position || "relative",
+    top: baseStyle.top,
+    left: baseStyle.left,
+    right: baseStyle.right,
+    bottom: baseStyle.bottom,
+    display: baseStyle.display ?? "inline-flex",
+    width: baseStyle.width ?? glassSize.width,
+    minWidth: baseStyle.minWidth ?? baseStyle.width ?? glassSize.width,
+    maxWidth: baseStyle.maxWidth,
+    height: baseStyle.height ?? glassSize.height,
+    minHeight: baseStyle.minHeight ?? baseStyle.height ?? glassSize.height,
+    maxHeight: baseStyle.maxHeight,
+    pointerEvents: baseStyle.pointerEvents,
+    transform: undefined, // keep transform on inner elements
+  }
+  const overlayWrapperStyle: React.CSSProperties = {
+    position: "absolute",
+    inset: 0,
+    transform: baseStyle.transform,
+    pointerEvents: "none",
+  }
+  const overlayFrameStyles: React.CSSProperties = {
+    position: "absolute",
+    inset: 0,
+  }
 
   useEffect(() => {
     // eslint-disable-next-line no-console
@@ -544,7 +570,7 @@ export default function LiquidGlass({
   const overlayBlendOpacity = overLight ? 0.32 : 0
 
   return (
-    <>
+    <div style={wrapperStyle} className={className}>
       {/* Over light effect */}
       <GlassContainer
         ref={glassRef}
@@ -570,137 +596,116 @@ export default function LiquidGlass({
         {children}
       </GlassContainer>
 
-      {/* Over light effect */}
-      <div
-        className="transition-all duration-150 ease-in-out pointer-events-none"
-        style={{
-          ...positionStyles,
-          height: glassSize.height,
-          width: glassSize.width,
-          borderRadius: `${cornerRadius}px`,
-          transform: baseStyle.transform,
-          transition: baseStyle.transition,
-          backgroundColor: overlayBaseColor,
-          opacity: overlaySoftOpacity,
-        }}
-      />
-      <div
-        className="transition-all duration-150 ease-in-out pointer-events-none"
-        style={{
-          ...positionStyles,
-          height: glassSize.height,
-          width: glassSize.width,
-          borderRadius: `${cornerRadius}px`,
-          transform: baseStyle.transform,
-          transition: baseStyle.transition,
-          backgroundColor: overlayBaseColor,
-          opacity: overlayBlendOpacity,
-          mixBlendMode: "overlay",
-        }}
-      />
+      <div className="pointer-events-none relative" style={{ ...overlayWrapperStyle, width: glassSize.width, height: glassSize.height }}>
+        {/* Over light effect */}
+        <div
+          className="transition-all duration-150 ease-in-out"
+          style={{
+            ...overlayFrameStyles,
+            borderRadius: `${cornerRadius}px`,
+            transition: baseStyle.transition,
+            backgroundColor: overlayBaseColor,
+            opacity: overlaySoftOpacity,
+          }}
+        />
+        <div
+          className="transition-all duration-150 ease-in-out"
+          style={{
+            ...overlayFrameStyles,
+            borderRadius: `${cornerRadius}px`,
+            transition: baseStyle.transition,
+            backgroundColor: overlayBaseColor,
+            opacity: overlayBlendOpacity,
+            mixBlendMode: "overlay",
+          }}
+        />
 
-      {/* Border layer 1 - extracted from glass container */}
-      <span
-        style={{
-          ...positionStyles,
-          height: glassSize.height,
-          width: glassSize.width,
-          borderRadius: `${cornerRadius}px`,
-          transform: baseStyle.transform,
-          transition: baseStyle.transition,
-          pointerEvents: "none",
-          mixBlendMode: "screen",
-          opacity: 0.2,
-          padding: "1.5px",
-          WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
-          WebkitMaskComposite: "xor",
-          maskComposite: "exclude",
-          boxShadow: "0 0 0 0.5px rgba(255, 255, 255, 0.5) inset, 0 1px 3px rgba(255, 255, 255, 0.25) inset, 0 1px 4px rgba(0, 0, 0, 0.35)",
-          background: `linear-gradient(
+        {/* Border layer 1 - extracted from glass container */}
+        <span
+          style={{
+            ...overlayFrameStyles,
+            borderRadius: `${cornerRadius}px`,
+            transition: baseStyle.transition,
+            pointerEvents: "none",
+            mixBlendMode: "screen",
+            opacity: 0.2,
+            padding: "1.5px",
+            WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+            WebkitMaskComposite: "xor",
+            maskComposite: "exclude",
+            boxShadow: "0 0 0 0.5px rgba(255, 255, 255, 0.5) inset, 0 1px 3px rgba(255, 255, 255, 0.25) inset, 0 1px 4px rgba(0, 0, 0, 0.35)",
+            background: `linear-gradient(
           ${135 + mouseOffset.x * 1.2}deg,
           rgba(255, 255, 255, 0.0) 0%,
           rgba(255, 255, 255, ${0.12 + Math.abs(mouseOffset.x) * 0.008}) ${Math.max(10, 33 + mouseOffset.y * 0.3)}%,
           rgba(255, 255, 255, ${0.4 + Math.abs(mouseOffset.x) * 0.012}) ${Math.min(90, 66 + mouseOffset.y * 0.4)}%,
           rgba(255, 255, 255, 0.0) 100%
         )`,
-        }}
-      />
+          }}
+        />
 
-      {/* Border layer 2 - duplicate with mix-blend-overlay */}
-      <span
-        style={{
-          ...positionStyles,
-          height: glassSize.height,
-          width: glassSize.width,
-          borderRadius: `${cornerRadius}px`,
-          transform: baseStyle.transform,
-          transition: baseStyle.transition,
-          pointerEvents: "none",
-          mixBlendMode: "overlay",
-          padding: "1.5px",
-          WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
-          WebkitMaskComposite: "xor",
-          maskComposite: "exclude",
-          boxShadow: "0 0 0 0.5px rgba(255, 255, 255, 0.5) inset, 0 1px 3px rgba(255, 255, 255, 0.25) inset, 0 1px 4px rgba(0, 0, 0, 0.35)",
-          background: `linear-gradient(
+        {/* Border layer 2 - duplicate with mix-blend-overlay */}
+        <span
+          style={{
+            ...overlayFrameStyles,
+            borderRadius: `${cornerRadius}px`,
+            transition: baseStyle.transition,
+            pointerEvents: "none",
+            mixBlendMode: "overlay",
+            padding: "1.5px",
+            WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+            WebkitMaskComposite: "xor",
+            maskComposite: "exclude",
+            boxShadow: "0 0 0 0.5px rgba(255, 255, 255, 0.5) inset, 0 1px 3px rgba(255, 255, 255, 0.25) inset, 0 1px 4px rgba(0, 0, 0, 0.35)",
+            background: `linear-gradient(
           ${135 + mouseOffset.x * 1.2}deg,
           rgba(255, 255, 255, 0.0) 0%,
           rgba(255, 255, 255, ${0.32 + Math.abs(mouseOffset.x) * 0.008}) ${Math.max(10, 33 + mouseOffset.y * 0.3)}%,
           rgba(255, 255, 255, ${0.6 + Math.abs(mouseOffset.x) * 0.012}) ${Math.min(90, 66 + mouseOffset.y * 0.4)}%,
           rgba(255, 255, 255, 0.0) 100%
         )`,
-        }}
-      />
+          }}
+        />
 
-      {/* Hover effects */}
-      {Boolean(onClick) && (
-        <>
-          <div
-            style={{
-              ...positionStyles,
-              height: glassSize.height,
-              width: glassSize.width,
-              borderRadius: `${cornerRadius}px`,
-              transform: baseStyle.transform,
-              pointerEvents: "none",
-              transition: "all 0.2s ease-out",
-              opacity: isHovered || isActive ? 0.5 : 0,
-              backgroundImage: "radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 50%)",
-              mixBlendMode: "overlay",
-            }}
-          />
-          <div
-            style={{
-              ...positionStyles,
-              height: glassSize.height,
-              width: glassSize.width,
-              borderRadius: `${cornerRadius}px`,
-              transform: baseStyle.transform,
-              pointerEvents: "none",
-              transition: "all 0.2s ease-out",
-              opacity: isActive ? 0.5 : 0,
-              backgroundImage: "radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0) 80%)",
-              mixBlendMode: "overlay",
-            }}
-          />
-          <div
-            style={{
-              ...baseStyle,
-              height: glassSize.height,
-              width: glassSize.width,
-              borderRadius: `${cornerRadius}px`,
-              position: baseStyle.position,
-              top: baseStyle.top,
-              left: baseStyle.left,
-              pointerEvents: "none",
-              transition: "all 0.2s ease-out",
-              opacity: isHovered ? 0.4 : isActive ? 0.8 : 0,
-              backgroundImage: "radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0) 100%)",
-              mixBlendMode: "overlay",
-            }}
-          />
-        </>
-      )}
-    </>
+        {/* Hover effects */}
+        {Boolean(onClick) && (
+          <>
+            <div
+              style={{
+                ...overlayFrameStyles,
+                borderRadius: `${cornerRadius}px`,
+                pointerEvents: "none",
+                transition: "all 0.2s ease-out",
+                opacity: isHovered || isActive ? 0.5 : 0,
+                backgroundImage: "radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 50%)",
+                mixBlendMode: "overlay",
+              }}
+            />
+            <div
+              style={{
+                ...overlayFrameStyles,
+                borderRadius: `${cornerRadius}px`,
+                pointerEvents: "none",
+                transition: "all 0.2s ease-out",
+                opacity: isActive ? 0.5 : 0,
+                backgroundImage: "radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0) 80%)",
+                mixBlendMode: "overlay",
+              }}
+            />
+            <div
+              style={{
+                ...overlayFrameStyles,
+                borderRadius: `${cornerRadius}px`,
+                pointerEvents: "none",
+                transition: "all 0.2s ease-out",
+                opacity: isHovered ? 0.4 : isActive ? 0.8 : 0,
+                backgroundImage: "radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0) 100%)",
+                mixBlendMode: "overlay",
+              }}
+            />
+          </>
+        )}
+      </div>
+    </div>
   )
 }
