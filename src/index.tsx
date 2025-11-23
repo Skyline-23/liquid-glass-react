@@ -1,4 +1,4 @@
-import { type CSSProperties, forwardRef, useCallback, useEffect, useId, useRef, useState } from "react"
+import { type CSSProperties, forwardRef, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 import { ShaderDisplacementGenerator, fragmentShaders } from "./shader-utils"
 import { displacementMap, polarDisplacementMap, prominentDisplacementMap } from "./utils"
 
@@ -48,7 +48,16 @@ const GlassFilter: React.FC<{ id: string; displacementScale: number; aberrationI
         <stop offset={`${Math.max(30, 80 - aberrationIntensity * 2)}%`} stopColor="black" stopOpacity="0" />
         <stop offset="100%" stopColor="white" stopOpacity="1" />
       </radialGradient>
-      <filter id={id} x="-35%" y="-35%" width="170%" height="170%" colorInterpolationFilters="sRGB">
+      <filter
+        id={id}
+        x={-width * 0.1}
+        y={-height * 0.1}
+        width={width * 1.2}
+        height={height * 1.2}
+        filterUnits="userSpaceOnUse"
+        primitiveUnits="userSpaceOnUse"
+        colorInterpolationFilters="sRGB"
+      >
         <feImage id="feimage" x="0" y="0" width="100%" height="100%" result="DISPLACEMENT_MAP" href={getMap(mode, shaderMapUrl)} preserveAspectRatio="xMidYMid slice" />
 
         {/* Create edge mask using the displacement map itself */}
@@ -68,60 +77,17 @@ const GlassFilter: React.FC<{ id: string; displacementScale: number; aberrationI
         {/* Original undisplaced image for center */}
         <feOffset in="SourceGraphic" dx="0" dy="0" result="CENTER_ORIGINAL" />
 
-        {/* Red channel displacement with slight offset */}
-        <feDisplacementMap in="SourceGraphic" in2="DISPLACEMENT_MAP" scale={displacementScale * (mode === "shader" ? 1 : -1)} xChannelSelector="R" yChannelSelector="B" result="RED_DISPLACED" />
-        <feColorMatrix
-          in="RED_DISPLACED"
-          type="matrix"
-          values="1 0 0 0 0
-                 0 0 0 0 0
-                 0 0 0 0 0
-                 0 0 0 1 0"
-          result="RED_CHANNEL"
-        />
-
-        {/* Green channel displacement */}
-        <feDisplacementMap in="SourceGraphic" in2="DISPLACEMENT_MAP" scale={displacementScale * ((mode === "shader" ? 1 : -1) - aberrationIntensity * 0.05)} xChannelSelector="R" yChannelSelector="B" result="GREEN_DISPLACED" />
-        <feColorMatrix
-          in="GREEN_DISPLACED"
-          type="matrix"
-          values="0 0 0 0 0
-                 0 1 0 0 0
-                 0 0 0 0 0
-                 0 0 0 1 0"
-          result="GREEN_CHANNEL"
-        />
-
-        {/* Blue channel displacement with slight offset */}
-        <feDisplacementMap in="SourceGraphic" in2="DISPLACEMENT_MAP" scale={displacementScale * ((mode === "shader" ? 1 : -1) - aberrationIntensity * 0.1)} xChannelSelector="R" yChannelSelector="B" result="BLUE_DISPLACED" />
-        <feColorMatrix
-          in="BLUE_DISPLACED"
-          type="matrix"
-          values="0 0 0 0 0
-                 0 0 0 0 0
-                 0 0 1 0 0
-                 0 0 0 1 0"
-          result="BLUE_CHANNEL"
-        />
-
-        {/* Combine all channels with screen blend mode for chromatic aberration */}
-        <feBlend in="GREEN_CHANNEL" in2="BLUE_CHANNEL" mode="screen" result="GB_COMBINED" />
-        <feBlend in="RED_CHANNEL" in2="GB_COMBINED" mode="screen" result="RGB_COMBINED" />
-
-        {/* Add slight blur to soften the aberration effect */}
-        <feGaussianBlur in="RGB_COMBINED" stdDeviation={Math.max(0.1, 0.5 - aberrationIntensity * 0.1)} result="ABERRATED_BLURRED" />
-
-        {/* Apply edge mask to aberration effect */}
-        <feComposite in="ABERRATED_BLURRED" in2="EDGE_MASK" operator="in" result="EDGE_ABERRATION" />
-
-        {/* Create inverted mask for center */}
+        {/* Single displacement (no RGB split) */}
+        <feDisplacementMap in="SourceGraphic" in2="DISPLACEMENT_MAP" scale={displacementScale * (mode === "shader" ? 1 : -1)} xChannelSelector="R" yChannelSelector="B" result="DISPLACED" />
+        <feGaussianBlur in="DISPLACED" stdDeviation={Math.max(0.1, 0.5 - aberrationIntensity * 0.1)} result="SOFTENED" />
+        <feComposite in="SOFTENED" in2="EDGE_MASK" operator="in" result="EDGE_DISPLACED" />
+        {/* Clean center */}
         <feComponentTransfer in="EDGE_MASK" result="INVERTED_MASK">
           <feFuncA type="table" tableValues="1 0" />
         </feComponentTransfer>
         <feComposite in="CENTER_ORIGINAL" in2="INVERTED_MASK" operator="in" result="CENTER_CLEAN" />
-
-        {/* Combine edge aberration with clean center */}
-        <feComposite in="EDGE_ABERRATION" in2="CENTER_CLEAN" operator="over" />
+        {/* Combine */}
+        <feComposite in="EDGE_DISPLACED" in2="CENTER_CLEAN" operator="over" />
       </filter>
     </defs>
   </svg>
@@ -149,13 +115,14 @@ const GlassContainer = forwardRef<
     glassSize?: { width: number; height: number }
     onClick?: () => void
     mode?: "standard" | "polar" | "prominent" | "shader"
+    filterIdRef?: React.MutableRefObject<string | null> | null
   }>
 >(
   (
     {
       children,
       className = "",
-      style = {},
+      style,
       displacementScale = 25,
       blurAmount = 12,
       saturation = 180,
@@ -171,10 +138,16 @@ const GlassContainer = forwardRef<
       glassSize = { width: 270, height: 69 },
       onClick,
       mode = "standard",
+      filterIdRef = null,
     },
     ref,
   ) => {
     const filterId = useId()
+    useEffect(() => {
+      if (filterIdRef) {
+        filterIdRef.current = filterId
+      }
+    }, [filterId, filterIdRef])
     const [shaderMapUrl, setShaderMapUrl] = useState<string>("")
 
     const isFirefox = navigator.userAgent.toLowerCase().includes("firefox")
@@ -201,15 +174,15 @@ const GlassContainer = forwardRef<
           style={{
             borderRadius: `${cornerRadius}px`,
             position: "relative",
-            display: "inline-flex",
-            alignItems: "center",
+            display: (style as React.CSSProperties).display ?? "inline-flex",
+            alignItems: (style as React.CSSProperties).alignItems ?? "center",
             gap: "24px",
             padding,
-            width: style.width ?? "100%",
-            minWidth: style.width ?? "100%",
-            overflow: "hidden",
+            overflow: (style as React.CSSProperties).overflow ?? "hidden",
             transition: "all 0.2s ease-in-out",
             boxShadow: overLight ? "0px 16px 70px rgba(0, 0, 0, 0.75)" : "0px 12px 40px rgba(0, 0, 0, 0.25)",
+            width: "100%",
+            height: "100%",
           }}
           onMouseEnter={onMouseEnter}
           onMouseLeave={onMouseLeave}
@@ -265,17 +238,19 @@ interface LiquidGlassProps {
   overLight?: boolean
   mode?: "standard" | "polar" | "prominent" | "shader"
   onClick?: () => void
+  containerRef?: React.RefObject<HTMLDivElement | null> | null
   centered?: boolean
-  axisCenter?: "xy" | "x" | "none"
+  axisCenter?: "both" | "x" | "y" | "none"
+  glassSize?: { width: number; height: number }
 }
 
 export default function LiquidGlass({
   children,
-  displacementScale = 70,
-  blurAmount = 0.0625,
+  displacementScale = 99,
+  blurAmount = 0.0,
   saturation = 140,
   aberrationIntensity = 2,
-  elasticity = 0.15,
+  elasticity = 0.0,
   cornerRadius = 999,
   globalMousePos: externalGlobalMousePos,
   mouseOffset: externalMouseOffset,
@@ -286,27 +261,18 @@ export default function LiquidGlass({
   style = {},
   mode = "standard",
   onClick,
+  containerRef = null,
   centered = true,
-  axisCenter = "xy",
+  axisCenter = "both",
+  glassSize: externalGlassSize,
 }: LiquidGlassProps) {
-  const resolveLength = (v?: string | number): number | null => {
-    if (v === undefined || v === null) return null
-    if (typeof v === "number") return Number.isFinite(v) ? v : null
-    const trimmed = v.trim().toLowerCase()
-    if (!trimmed) return null
-    const pxMatch = trimmed.match(/^(-?\d+(?:\.\d+)?)(px)?$/)
-    return pxMatch ? parseFloat(pxMatch[1]) : null
-  }
-
-  const explicitWidth = resolveLength(style.width)
-  const explicitHeight = resolveLength(style.height)
   const glassRef = useRef<HTMLDivElement>(null)
+  const overlayWrapperRef = useRef<HTMLDivElement>(null)
+  const borderSpanRef = useRef<HTMLSpanElement>(null)
+  const filterIdRef = useRef<string | null>(null)
   const [isHovered, setIsHovered] = useState(false)
   const [isActive, setIsActive] = useState(false)
-  const [glassSize, setGlassSize] = useState({
-    width: explicitWidth ?? 270,
-    height: explicitHeight ?? 69,
-  })
+  const [glassSize, setGlassSize] = useState(externalGlassSize ?? { width: 270, height: 69 })
   const [internalGlobalMousePos, setInternalGlobalMousePos] = useState({ x: 0, y: 0 })
   const [internalMouseOffset, setInternalMouseOffset] = useState({ x: 0, y: 0 })
 
@@ -447,131 +413,166 @@ export default function LiquidGlass({
     }
   }, [globalMousePos, elasticity, calculateFadeInFactor])
 
-  // Update glass size whenever component mounts or window resizes
+  const measureGlassSize = useCallback(() => {
+    if (externalGlassSize) {
+      return
+    }
+
+    const glassEl = glassRef.current?.querySelector<HTMLElement>(".glass")
+    if (!glassEl) return
+
+    const rect = glassEl.getBoundingClientRect()
+    const next = { width: rect.width, height: rect.height }
+
+    setGlassSize((prev) => (prev.width === next.width && prev.height === next.height ? prev : next))
+  }, [externalGlassSize])
+
+  // Ensure the measured size matches the actual glass content, not the initial default.
+  useLayoutEffect(() => {
+    measureGlassSize()
+  }, [measureGlassSize, children, padding])
+
+  // Update glass size on resize/rehydration; respect externally provided sizes.
   useEffect(() => {
-    const updateGlassSize = () => {
-      if (explicitWidth || explicitHeight) {
-        setGlassSize((prev) => ({
-          width: explicitWidth ?? prev.width,
-          height: explicitHeight ?? prev.height,
-        }))
-        return
-      }
-      const node = glassRef.current
-      if (!node) return
-      const width = Math.round(node.offsetWidth || node.getBoundingClientRect().width)
-      const height = Math.round(node.offsetHeight || node.getBoundingClientRect().height)
-      if (!width || !height) return
-      setGlassSize({ width, height })
+    if (externalGlassSize) {
+      setGlassSize(externalGlassSize)
+      return
     }
 
-    updateGlassSize()
-    if (typeof ResizeObserver !== "undefined") {
-      const observer = new ResizeObserver(updateGlassSize)
-      const node = glassRef.current
-      if (node) observer.observe(node)
-      return () => observer.disconnect()
+    if (typeof window === "undefined") return
+
+    measureGlassSize()
+    const handleResize = () => measureGlassSize()
+    window.addEventListener("resize", handleResize)
+
+    let observer: ResizeObserver | null = null
+    const glassEl = glassRef.current?.querySelector<HTMLElement>(".glass")
+    if (glassEl && "ResizeObserver" in window) {
+      observer = new ResizeObserver(() => measureGlassSize())
+      observer.observe(glassEl)
     }
-    window.addEventListener("resize", updateGlassSize)
-    return () => window.removeEventListener("resize", updateGlassSize)
-  }, [explicitHeight, explicitWidth])
 
-  const elasticTranslation = calculateElasticTranslation()
-  const baseTranslate =
-    centered && axisCenter === "xy"
-      ? "translate(-50%, -50%)"
-      : centered && axisCenter === "x"
-        ? "translateX(-50%)"
-        : ""
-  const elasticTranslate = `translate(${elasticTranslation.x}px, ${elasticTranslation.y}px)`
-  const scalePart = isActive && Boolean(onClick) ? "scale(0.96)" : calculateDirectionalScale()
+    return () => {
+      window.removeEventListener("resize", handleResize)
+      if (observer) observer.disconnect()
+    }
+  }, [externalGlassSize, measureGlassSize])
 
-  // If caller provided a transform (e.g., custom centering), preserve it and still apply motion/scaling.
-  const dynamicTransform = `${baseTranslate} ${elasticTranslate} ${scalePart}`.trim()
-  const resolvedTransform = style.transform
-    ? `${style.transform} ${elasticTranslate} ${scalePart}`.trim()
-    : dynamicTransform
+  useEffect(() => {
+    if (externalGlassSize) {
+      setGlassSize(externalGlassSize)
+    }
+  }, [externalGlassSize?.width, externalGlassSize?.height])
 
+  const elastic = calculateElasticTranslation()
+  const dynamicTransform = `${isActive && Boolean(onClick) ? "scale(0.96)" : calculateDirectionalScale()} translate(${elastic.x}px, ${elastic.y}px)`.trim()
+  const callerTransform = (style as React.CSSProperties).transform
+  const appliedTransform = dynamicTransform
+
+  // Apply transform to glass/overlays; wrapper handles positioning
   const baseStyle: React.CSSProperties = {
-    position: style.position ?? "relative",
-    display: style.display ?? "inline-flex",
-    transition: style.transition ?? "all ease-out 0.2s",
     ...style,
-    // Provide sensible defaults only when user hasn't supplied them
-    top: style.top ?? (centered && axisCenter === "xy" ? "50%" : undefined),
-    left: style.left ?? (centered && (axisCenter === "xy" || axisCenter === "x") ? "50%" : undefined),
-    transform: resolvedTransform,
+    position: "relative",
+    top: undefined,
+    left: undefined,
+    right: undefined,
+    bottom: undefined,
+    transform: appliedTransform,
+    transition: style.transition ?? "all ease-out 0.2s",
   }
 
-  const positionStyles: React.CSSProperties = {
-    position: baseStyle.position || "relative",
-    top: baseStyle.top,
-    left: baseStyle.left,
-    right: baseStyle.right,
-    bottom: baseStyle.bottom,
+  const wrapperPosition: React.CSSProperties = {
+    top: (style as React.CSSProperties).top,
+    left: (style as React.CSSProperties).left,
+    right: (style as React.CSSProperties).right,
+    bottom: (style as React.CSSProperties).bottom,
   }
+
   const wrapperStyle: React.CSSProperties = {
-    position: baseStyle.position || "relative",
-    top: baseStyle.top,
-    left: baseStyle.left,
-    right: baseStyle.right,
-    bottom: baseStyle.bottom,
-    display: baseStyle.display ?? "inline-flex",
-    width: baseStyle.width ?? glassSize.width,
-    minWidth: baseStyle.minWidth ?? baseStyle.width ?? glassSize.width,
-    maxWidth: baseStyle.maxWidth,
-    height: baseStyle.height ?? glassSize.height,
-    minHeight: baseStyle.minHeight ?? baseStyle.height ?? glassSize.height,
-    maxHeight: baseStyle.maxHeight,
-    pointerEvents: baseStyle.pointerEvents,
-    transform: undefined, // keep transform on inner elements
+    position: (style as React.CSSProperties).position || "relative",
+    display: (style as React.CSSProperties).display ?? "inline-flex",
+    width: style.width ?? glassSize.width,
+    height: style.height,
+    ...wrapperPosition,
+    transform: callerTransform,
   }
+
   const overlayWrapperStyle: React.CSSProperties = {
     position: "absolute",
     inset: 0,
-    transform: baseStyle.transform,
     pointerEvents: "none",
+    transition: baseStyle.transition,
+    transform: appliedTransform,
+    width: "100%",
+    height: "100%",
   }
+
+  // Border frame sized to measured glass for consistent glint/mask.
   const overlayFrameStyles: React.CSSProperties = {
     position: "absolute",
     inset: 0,
+    width: "100%",
+    height: "100%",
+    borderRadius: `${cornerRadius}px`,
+    transition: baseStyle.transition,
+    boxSizing: "border-box",
+    boxShadow: "0 0 0 0.75px rgba(255, 255, 255, 0.6), 0 1px 3px rgba(255, 255, 255, 0.25) inset, 0 1px 4px rgba(0, 0, 0, 0.25)",
+    pointerEvents: "none",
   }
 
   useEffect(() => {
+    const glassRect = glassRef.current?.getBoundingClientRect()
+    const borderRect = borderSpanRef.current?.getBoundingClientRect()
+    const overlayRect = overlayWrapperRef.current?.getBoundingClientRect()
+    const borderStyle = borderSpanRef.current ? window.getComputedStyle(borderSpanRef.current) : null
     // eslint-disable-next-line no-console
     console.log(`[LiquidGlass debug:${className || "unnamed"}]`, {
-      mode,
-      baseTransform: baseStyle.transform,
-      position: {
-        top: baseStyle.top,
-        left: baseStyle.left,
-        right: baseStyle.right,
-        bottom: baseStyle.bottom,
-      },
       glassSize,
-      width: style.width,
-      height: style.height,
+      transform: baseStyle.transform,
+      rects: { glass: glassRect, overlayWrapper: overlayRect, border: borderRect },
+      offsets: borderRect && glassRect ? {
+        dx: Math.round((borderRect.x - glassRect.x) * 100) / 100,
+        dy: Math.round((borderRect.y - glassRect.y) * 100) / 100,
+        dWidth: Math.round((borderRect.width - glassRect.width) * 100) / 100,
+        dHeight: Math.round((borderRect.height - glassRect.height) * 100) / 100,
+      } : null,
+      borderStyle: borderStyle ? {
+        width: borderStyle.width,
+        height: borderStyle.height,
+        inset: `${borderStyle.top} ${borderStyle.right} ${borderStyle.bottom} ${borderStyle.left}`,
+        borderRadius: borderStyle.borderRadius,
+        mixBlendMode: borderStyle.mixBlendMode,
+        boxShadow: borderStyle.boxShadow,
+        opacity: borderStyle.opacity,
+      } : null,
     })
   }, [
     className,
-    mode,
     baseStyle.transform,
-    baseStyle.top,
-    baseStyle.left,
-    baseStyle.right,
-    baseStyle.bottom,
     glassSize.width,
     glassSize.height,
-    style.width,
-    style.height,
   ])
-  const overlayBaseColor = "rgba(12, 16, 28, 0.75)"
-  const overlaySoftOpacity = overLight ? 0.14 : 0
-  const overlayBlendOpacity = overLight ? 0.32 : 0
 
   return (
-    <div style={wrapperStyle} className={className}>
-      {/* Over light effect */}
+    <div
+      ref={(node) => {
+        if (containerRef) containerRef.current = node
+      }}
+      style={{ ...wrapperStyle }}
+      className={className}
+    >
+      <div className="pointer-events-none absolute inset-0" style={{ ...overlayWrapperStyle, zIndex: 0 }}>
+        {/* Over-light: subtle bright veil for light backgrounds (avoid darkening) */}
+        <div
+          className={`bg-white transition-all duration-150 ease-in-out mix-blend-screen ${overLight ? "opacity-15" : "opacity-0"}`}
+          style={{ ...overlayFrameStyles, borderRadius: `${cornerRadius}px` }}
+        />
+        <div
+          className={`bg-white transition-all duration-150 ease-in-out mix-blend-overlay ${overLight ? "opacity-08" : "opacity-0"}`}
+          style={{ ...overlayFrameStyles, borderRadius: `${cornerRadius}px` }}
+        />
+      </div>
+
       <GlassContainer
         ref={glassRef}
         className={className}
@@ -592,41 +593,15 @@ export default function LiquidGlass({
         overLight={overLight}
         onClick={onClick}
         mode={mode}
+        filterIdRef={filterIdRef}
       >
         {children}
       </GlassContainer>
 
-      <div className="pointer-events-none relative" style={{ ...overlayWrapperStyle, width: glassSize.width, height: glassSize.height }}>
-        {/* Over light effect */}
-        <div
-          className="transition-all duration-150 ease-in-out"
-          style={{
-            ...overlayFrameStyles,
-            borderRadius: `${cornerRadius}px`,
-            transition: baseStyle.transition,
-            backgroundColor: overlayBaseColor,
-            opacity: overlaySoftOpacity,
-          }}
-        />
-        <div
-          className="transition-all duration-150 ease-in-out"
-          style={{
-            ...overlayFrameStyles,
-            borderRadius: `${cornerRadius}px`,
-            transition: baseStyle.transition,
-            backgroundColor: overlayBaseColor,
-            opacity: overlayBlendOpacity,
-            mixBlendMode: "overlay",
-          }}
-        />
-
-        {/* Border layer 1 - extracted from glass container */}
+      <div className="pointer-events-none absolute inset-0" style={{ ...overlayWrapperStyle, zIndex: 10 }} ref={overlayWrapperRef}>
         <span
           style={{
             ...overlayFrameStyles,
-            borderRadius: `${cornerRadius}px`,
-            transition: baseStyle.transition,
-            pointerEvents: "none",
             mixBlendMode: "screen",
             opacity: 0.2,
             padding: "1.5px",
@@ -644,13 +619,10 @@ export default function LiquidGlass({
           }}
         />
 
-        {/* Border layer 2 - duplicate with mix-blend-overlay */}
         <span
+          ref={borderSpanRef}
           style={{
             ...overlayFrameStyles,
-            borderRadius: `${cornerRadius}px`,
-            transition: baseStyle.transition,
-            pointerEvents: "none",
             mixBlendMode: "overlay",
             padding: "1.5px",
             WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
@@ -667,37 +639,28 @@ export default function LiquidGlass({
           }}
         />
 
-        {/* Hover effects */}
+        {/* Hover pulse (optional) */}
         {Boolean(onClick) && (
           <>
-            <div
+            <span
               style={{
                 ...overlayFrameStyles,
-                borderRadius: `${cornerRadius}px`,
-                pointerEvents: "none",
-                transition: "all 0.2s ease-out",
                 opacity: isHovered || isActive ? 0.5 : 0,
                 backgroundImage: "radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 50%)",
                 mixBlendMode: "overlay",
               }}
             />
-            <div
+            <span
               style={{
                 ...overlayFrameStyles,
-                borderRadius: `${cornerRadius}px`,
-                pointerEvents: "none",
-                transition: "all 0.2s ease-out",
                 opacity: isActive ? 0.5 : 0,
                 backgroundImage: "radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0) 80%)",
                 mixBlendMode: "overlay",
               }}
             />
-            <div
+            <span
               style={{
                 ...overlayFrameStyles,
-                borderRadius: `${cornerRadius}px`,
-                pointerEvents: "none",
-                transition: "all 0.2s ease-out",
                 opacity: isHovered ? 0.4 : isActive ? 0.8 : 0,
                 backgroundImage: "radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0) 100%)",
                 mixBlendMode: "overlay",
