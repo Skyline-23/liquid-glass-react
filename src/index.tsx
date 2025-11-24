@@ -519,6 +519,12 @@ export default function LiquidGlass({
     boxShadow: "0 0 0 0.75px rgba(255, 255, 255, 0.6), 0 1px 3px rgba(255, 255, 255, 0.25) inset, 0 1px 4px rgba(0, 0, 0, 0.25)",
     pointerEvents: "none",
   }
+  const screenGlowStyle: React.CSSProperties = overLight
+    ? {}
+    : { opacity: 0, background: "none", boxShadow: "none" }
+  const overlayGlowStyle: React.CSSProperties = overLight
+    ? {}
+    : { opacity: 0, background: "none", boxShadow: "none" }
 
   useEffect(() => {
     const glassRect = glassRef.current?.getBoundingClientRect()
@@ -561,17 +567,13 @@ export default function LiquidGlass({
       style={{ ...wrapperStyle }}
       className={className}
     >
-      <div className="pointer-events-none absolute inset-0" style={{ ...overlayWrapperStyle, zIndex: 0 }}>
-        {/* Over-light: subtle bright veil for light backgrounds (avoid darkening) */}
-        <div
-          className={`bg-white transition-all duration-150 ease-in-out mix-blend-screen ${overLight ? "opacity-15" : "opacity-0"}`}
-          style={{ ...overlayFrameStyles, borderRadius: `${cornerRadius}px` }}
-        />
-        <div
-          className={`bg-white transition-all duration-150 ease-in-out mix-blend-overlay ${overLight ? "opacity-08" : "opacity-0"}`}
-          style={{ ...overlayFrameStyles, borderRadius: `${cornerRadius}px` }}
-        />
-      </div>
+      {overLight && (
+        <div className="pointer-events-none absolute inset-0" style={{ ...overlayWrapperStyle, zIndex: 0 }}>
+          {/* Over-light: subtle bright veil for light backgrounds (avoid darkening) */}
+          <div className="bg-white transition-all duration-150 ease-in-out mix-blend-screen opacity-15" style={{ ...overlayFrameStyles, borderRadius: `${cornerRadius}px` }} />
+          <div className="bg-white transition-all duration-150 ease-in-out mix-blend-overlay opacity-08" style={{ ...overlayFrameStyles, borderRadius: `${cornerRadius}px` }} />
+        </div>
+      )}
 
       <GlassContainer
         ref={glassRef}
@@ -599,43 +601,52 @@ export default function LiquidGlass({
       </GlassContainer>
 
       <div className="pointer-events-none absolute inset-0" style={{ ...overlayWrapperStyle, zIndex: 10 }} ref={overlayWrapperRef}>
-        <span
-          style={{
-            ...overlayFrameStyles,
-            mixBlendMode: "screen",
-            opacity: overLight ? 0.2 : 0.05,
-            padding: "1.5px",
-            WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
-            WebkitMaskComposite: "xor",
-            maskComposite: "exclude",
-            boxShadow: "0 0 0 0.5px rgba(255, 255, 255, 0.5) inset, 0 1px 3px rgba(255, 255, 255, 0.25) inset, 0 1px 4px rgba(0, 0, 0, 0.35)",
-            background: `linear-gradient(
-          ${135 + mouseOffset.x * 1.2}deg,
-          rgba(255, 255, 255, 0.0) 0%,
-          rgba(255, 255, 255, ${(0.12 + Math.abs(mouseOffset.x) * 0.008) * (overLight ? 1 : 0.35)}) ${Math.max(10, 33 + mouseOffset.y * 0.3)}%,
-          rgba(255, 255, 255, ${(0.4 + Math.abs(mouseOffset.x) * 0.012) * (overLight ? 1 : 0.35)}) ${Math.min(90, 66 + mouseOffset.y * 0.4)}%,
-          rgba(255, 255, 255, 0.0) 100%
-        )`,
-          }}
-        />
+        {overLight && (
+          <span
+            style={{
+              ...overlayFrameStyles,
+              mixBlendMode: "screen",
+              opacity: 0.12,
+              padding: "1.5px",
+              WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+              WebkitMaskComposite: "xor",
+              maskComposite: "exclude",
+              boxShadow: "0 0 0 0.5px rgba(255, 255, 255, 0.5) inset, 0 1px 3px rgba(255, 255, 255, 0.25) inset, 0 1px 4px rgba(0, 0, 0, 0.35)",
+              background: `linear-gradient(
+            ${135 + mouseOffset.x * 1.2}deg,
+            rgba(255, 255, 255, 0.0) 0%,
+            rgba(255, 255, 255, ${(0.12 + Math.abs(mouseOffset.x) * 0.008)}) ${Math.max(10, 33 + mouseOffset.y * 0.3)}%,
+            rgba(255, 255, 255, ${(0.4 + Math.abs(mouseOffset.x) * 0.012)}) ${Math.min(90, 66 + mouseOffset.y * 0.4)}%,
+            rgba(255, 255, 255, 0.0) 100%
+          )`,
+              ...screenGlowStyle,
+            }}
+          />
+        )}
 
         <span
           ref={borderSpanRef}
           style={{
             ...overlayFrameStyles,
-            mixBlendMode: "overlay",
+            mixBlendMode: overLight ? "overlay" : "normal",
             padding: "1.5px",
             WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
             WebkitMaskComposite: "xor",
             maskComposite: "exclude",
-            boxShadow: "0 0 0 0.5px rgba(255, 255, 255, 0.5) inset, 0 1px 3px rgba(255, 255, 255, 0.25) inset, 0 1px 4px rgba(0, 0, 0, 0.35)",
-            background: `linear-gradient(
-          ${135 + mouseOffset.x * 1.2}deg,
-          rgba(255, 255, 255, 0.0) 0%,
-          rgba(255, 255, 255, ${(0.32 + Math.abs(mouseOffset.x) * 0.008) * (overLight ? 1 : 0.35)}) ${Math.max(10, 33 + mouseOffset.y * 0.3)}%,
-          rgba(255, 255, 255, ${(0.6 + Math.abs(mouseOffset.x) * 0.012) * (overLight ? 1 : 0.35)}) ${Math.min(90, 66 + mouseOffset.y * 0.4)}%,
-          rgba(255, 255, 255, 0.0) 100%
-        )`,
+            boxShadow: overLight
+              ? "0 0 0 0.5px rgba(255, 255, 255, 0.5) inset, 0 1px 3px rgba(255, 255, 255, 0.25) inset, 0 1px 4px rgba(0, 0, 0, 0.35)"
+              : "0 0 0 0.35px rgba(255, 255, 255, 0.25)",
+            opacity: overLight ? 1 : 0.25,
+            background: overLight
+              ? `linear-gradient(
+            ${135 + mouseOffset.x * 1.2}deg,
+            rgba(255, 255, 255, 0.0) 0%,
+            rgba(255, 255, 255, ${(0.32 + Math.abs(mouseOffset.x) * 0.008)}) ${Math.max(10, 33 + mouseOffset.y * 0.3)}%,
+            rgba(255, 255, 255, ${(0.6 + Math.abs(mouseOffset.x) * 0.012)}) ${Math.min(90, 66 + mouseOffset.y * 0.4)}%,
+            rgba(255, 255, 255, 0.0) 100%
+          )`
+              : "none",
+            ...overlayGlowStyle,
           }}
         />
 
