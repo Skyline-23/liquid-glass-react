@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   experimental: {
     externalDir: true,
   },
+  transpilePackages: ["@skyline23/liquid-glass-react"],
 };
 
 export default nextConfig;
