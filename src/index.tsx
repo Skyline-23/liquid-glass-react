@@ -77,17 +77,60 @@ const GlassFilter: React.FC<{ id: string; displacementScale: number; aberrationI
         {/* Original undisplaced image for center */}
         <feOffset in="SourceGraphic" dx="0" dy="0" result="CENTER_ORIGINAL" />
 
-        {/* Single displacement (no RGB split) */}
-        <feDisplacementMap in="SourceGraphic" in2="DISPLACEMENT_MAP" scale={displacementScale * (mode === "shader" ? 1 : -1)} xChannelSelector="R" yChannelSelector="B" result="DISPLACED" />
-        <feGaussianBlur in="DISPLACED" stdDeviation={Math.max(0.1, 0.5 - aberrationIntensity * 0.1)} result="SOFTENED" />
-        <feComposite in="SOFTENED" in2="EDGE_MASK" operator="in" result="EDGE_DISPLACED" />
-        {/* Clean center */}
+        {/* Red channel displacement with slight offset */}
+        <feDisplacementMap in="SourceGraphic" in2="DISPLACEMENT_MAP" scale={displacementScale * (mode === "shader" ? 1 : -1)} xChannelSelector="R" yChannelSelector="B" result="RED_DISPLACED" />
+        <feColorMatrix
+          in="RED_DISPLACED"
+          type="matrix"
+          values="1 0 0 0 0
+                 0 0 0 0 0
+                 0 0 0 0 0
+                 0 0 0 1 0"
+          result="RED_CHANNEL"
+        />
+
+        {/* Green channel displacement */}
+        <feDisplacementMap in="SourceGraphic" in2="DISPLACEMENT_MAP" scale={displacementScale * ((mode === "shader" ? 1 : -1) - aberrationIntensity * 0.05)} xChannelSelector="R" yChannelSelector="B" result="GREEN_DISPLACED" />
+        <feColorMatrix
+          in="GREEN_DISPLACED"
+          type="matrix"
+          values="0 0 0 0 0
+                 0 1 0 0 0
+                 0 0 0 0 0
+                 0 0 0 1 0"
+          result="GREEN_CHANNEL"
+        />
+
+        {/* Blue channel displacement with slight offset */}
+        <feDisplacementMap in="SourceGraphic" in2="DISPLACEMENT_MAP" scale={displacementScale * ((mode === "shader" ? 1 : -1) - aberrationIntensity * 0.1)} xChannelSelector="R" yChannelSelector="B" result="BLUE_DISPLACED" />
+        <feColorMatrix
+          in="BLUE_DISPLACED"
+          type="matrix"
+          values="0 0 0 0 0
+                 0 0 0 0 0
+                 0 0 1 0 0
+                 0 0 0 1 0"
+          result="BLUE_CHANNEL"
+        />
+
+        {/* Combine all channels with screen blend mode for chromatic aberration */}
+        <feBlend in="GREEN_CHANNEL" in2="BLUE_CHANNEL" mode="screen" result="GB_COMBINED" />
+        <feBlend in="RED_CHANNEL" in2="GB_COMBINED" mode="screen" result="RGB_COMBINED" />
+
+        {/* Add slight blur to soften the aberration effect */}
+        <feGaussianBlur in="RGB_COMBINED" stdDeviation={Math.max(0.1, 0.5 - aberrationIntensity * 0.1)} result="ABERRATED_BLURRED" />
+
+        {/* Apply edge mask to aberration effect */}
+        <feComposite in="ABERRATED_BLURRED" in2="EDGE_MASK" operator="in" result="EDGE_ABERRATION" />
+
+        {/* Create inverted mask for center */}
         <feComponentTransfer in="EDGE_MASK" result="INVERTED_MASK">
           <feFuncA type="table" tableValues="1 0" />
         </feComponentTransfer>
         <feComposite in="CENTER_ORIGINAL" in2="INVERTED_MASK" operator="in" result="CENTER_CLEAN" />
-        {/* Combine */}
-        <feComposite in="EDGE_DISPLACED" in2="CENTER_CLEAN" operator="over" />
+
+        {/* Combine edge aberration with clean center */}
+        <feComposite in="EDGE_ABERRATION" in2="CENTER_CLEAN" operator="over" />
       </filter>
     </defs>
   </svg>
@@ -246,11 +289,11 @@ interface LiquidGlassProps {
 
 export default function LiquidGlass({
   children,
-  displacementScale = 99,
-  blurAmount = 0.0,
+  displacementScale = 70,
+  blurAmount = 0.0625,
   saturation = 140,
   aberrationIntensity = 2,
-  elasticity = 0.0,
+  elasticity = 0.15,
   cornerRadius = 999,
   globalMousePos: externalGlobalMousePos,
   mouseOffset: externalMouseOffset,
@@ -516,15 +559,9 @@ export default function LiquidGlass({
     borderRadius: `${cornerRadius}px`,
     transition: baseStyle.transition,
     boxSizing: "border-box",
-    boxShadow: "0 0 0 0.75px rgba(255, 255, 255, 0.6), 0 1px 3px rgba(255, 255, 255, 0.25) inset, 0 1px 4px rgba(0, 0, 0, 0.25)",
+    boxShadow: "0 0 0 0.5px rgba(255, 255, 255, 0.5) inset, 0 1px 3px rgba(255, 255, 255, 0.25) inset, 0 1px 4px rgba(0, 0, 0, 0.35)",
     pointerEvents: "none",
   }
-  const screenGlowStyle: React.CSSProperties = overLight
-    ? {}
-    : { opacity: 0, background: "none", boxShadow: "none" }
-  const overlayGlowStyle: React.CSSProperties = overLight
-    ? {}
-    : { opacity: 0, background: "none", boxShadow: "none" }
 
   useEffect(() => {
     const glassRect = glassRef.current?.getBoundingClientRect()
@@ -569,9 +606,25 @@ export default function LiquidGlass({
     >
       {overLight && (
         <div className="pointer-events-none absolute inset-0" style={{ ...overlayWrapperStyle, zIndex: 0 }}>
-          {/* Over-light: subtle bright veil for light backgrounds (avoid darkening) */}
-          <div className="bg-white transition-all duration-150 ease-in-out mix-blend-screen opacity-15" style={{ ...overlayFrameStyles, borderRadius: `${cornerRadius}px` }} />
-          <div className="bg-white transition-all duration-150 ease-in-out mix-blend-overlay opacity-08" style={{ ...overlayFrameStyles, borderRadius: `${cornerRadius}px` }} />
+          <div
+            className="transition-all duration-150 ease-in-out"
+            style={{
+              ...overlayFrameStyles,
+              background: "black",
+              mixBlendMode: "normal",
+              opacity: 0.2,
+              boxShadow: "none",
+            }}
+          />
+          <div
+            className="transition-all duration-150 ease-in-out mix-blend-overlay"
+            style={{
+              ...overlayFrameStyles,
+              background: "black",
+              opacity: 1,
+              boxShadow: "none",
+            }}
+          />
         </div>
       )}
 
@@ -601,52 +654,41 @@ export default function LiquidGlass({
       </GlassContainer>
 
       <div className="pointer-events-none absolute inset-0" style={{ ...overlayWrapperStyle, zIndex: 10 }} ref={overlayWrapperRef}>
-        {overLight && (
-          <span
-            style={{
-              ...overlayFrameStyles,
-              mixBlendMode: "screen",
-              opacity: 0.12,
-              padding: "1.5px",
-              WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
-              WebkitMaskComposite: "xor",
-              maskComposite: "exclude",
-              boxShadow: "0 0 0 0.5px rgba(255, 255, 255, 0.5) inset, 0 1px 3px rgba(255, 255, 255, 0.25) inset, 0 1px 4px rgba(0, 0, 0, 0.35)",
-              background: `linear-gradient(
+        <span
+          style={{
+            ...overlayFrameStyles,
+            mixBlendMode: "screen",
+            opacity: 0.2,
+            padding: "1.5px",
+            WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+            WebkitMaskComposite: "xor",
+            maskComposite: "exclude",
+            background: `linear-gradient(
             ${135 + mouseOffset.x * 1.2}deg,
             rgba(255, 255, 255, 0.0) 0%,
             rgba(255, 255, 255, ${(0.12 + Math.abs(mouseOffset.x) * 0.008)}) ${Math.max(10, 33 + mouseOffset.y * 0.3)}%,
             rgba(255, 255, 255, ${(0.4 + Math.abs(mouseOffset.x) * 0.012)}) ${Math.min(90, 66 + mouseOffset.y * 0.4)}%,
             rgba(255, 255, 255, 0.0) 100%
           )`,
-              ...screenGlowStyle,
-            }}
-          />
-        )}
+          }}
+        />
 
         <span
           ref={borderSpanRef}
           style={{
             ...overlayFrameStyles,
-            mixBlendMode: overLight ? "overlay" : "normal",
+            mixBlendMode: "overlay",
             padding: "1.5px",
             WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
             WebkitMaskComposite: "xor",
             maskComposite: "exclude",
-            boxShadow: overLight
-              ? "0 0 0 0.5px rgba(255, 255, 255, 0.5) inset, 0 1px 3px rgba(255, 255, 255, 0.25) inset, 0 1px 4px rgba(0, 0, 0, 0.35)"
-              : "0 0 0 0.35px rgba(255, 255, 255, 0.25)",
-            opacity: overLight ? 1 : 0.25,
-            background: overLight
-              ? `linear-gradient(
+            background: `linear-gradient(
             ${135 + mouseOffset.x * 1.2}deg,
             rgba(255, 255, 255, 0.0) 0%,
             rgba(255, 255, 255, ${(0.32 + Math.abs(mouseOffset.x) * 0.008)}) ${Math.max(10, 33 + mouseOffset.y * 0.3)}%,
             rgba(255, 255, 255, ${(0.6 + Math.abs(mouseOffset.x) * 0.012)}) ${Math.min(90, 66 + mouseOffset.y * 0.4)}%,
             rgba(255, 255, 255, 0.0) 100%
-          )`
-              : "none",
-            ...overlayGlowStyle,
+          )`,
           }}
         />
 
