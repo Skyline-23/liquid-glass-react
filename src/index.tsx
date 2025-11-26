@@ -610,19 +610,20 @@ export default function LiquidGlass({
             className="transition-all duration-150 ease-in-out"
             style={{
               ...overlayFrameStyles,
-              background: "black",
+              background: "transparent",
               mixBlendMode: "normal",
-              opacity: 0.2,
-              boxShadow: "none",
+              opacity: 1,
+              boxShadow: "0 0 0 0.75px rgba(255, 255, 255, 0.6), 0 1px 3px 0 rgba(255, 255, 255, 0.25) inset, 0 1px 4px 0 rgba(0, 0, 0, 0.25)",
             }}
           />
           <div
             className="transition-all duration-150 ease-in-out mix-blend-overlay"
             style={{
               ...overlayFrameStyles,
-              background: "black",
+              background: "transparent",
+              mixBlendMode: "overlay",
               opacity: 1,
-              boxShadow: "none",
+              boxShadow: "0 0 0 0.75px rgba(255, 255, 255, 0.6), 0 1px 3px 0 rgba(255, 255, 255, 0.25) inset, 0 1px 4px 0 rgba(0, 0, 0, 0.25)",
             }}
           />
         </div>
