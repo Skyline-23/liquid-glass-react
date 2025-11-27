@@ -208,8 +208,15 @@ const GlassContainer = forwardRef<
       backdropFilter: `blur(${(overLight ? 12 : 4) + blurAmount * 32}px) saturate(${saturation}%)`,
     }
 
+    const outerShadow = overLight ? "0px 16px 70px rgba(0, 0, 0, 0.75)" : "0px 12px 40px rgba(0, 0, 0, 0.25)"
+
     return (
-      <div ref={ref} className={`relative ${className} ${active ? "active" : ""} ${Boolean(onClick) ? "cursor-pointer" : ""}`} style={style} onClick={onClick}>
+      <div
+        ref={ref}
+        className={`relative ${className} ${active ? "active" : ""} ${Boolean(onClick) ? "cursor-pointer" : ""}`}
+        style={{ ...style, overflow: "visible", boxShadow: (style as CSSProperties)?.boxShadow ?? outerShadow, borderRadius: `${cornerRadius}px` }}
+        onClick={onClick}
+      >
         <GlassFilter mode={mode} id={filterId} displacementScale={displacementScale} aberrationIntensity={aberrationIntensity} width={glassSize.width} height={glassSize.height} shaderMapUrl={shaderMapUrl} />
 
         <div
@@ -223,7 +230,7 @@ const GlassContainer = forwardRef<
             padding,
             overflow: (style as React.CSSProperties).overflow ?? "hidden",
             transition: "all 0.2s ease-in-out",
-            boxShadow: overLight ? "0px 16px 70px rgba(0, 0, 0, 0.75)" : "0px 12px 40px rgba(0, 0, 0, 0.25)",
+            boxShadow: "none",
             width: "100%",
             height: "100%",
           }}
