@@ -208,7 +208,7 @@ const GlassContainer = forwardRef<
       backdropFilter: `blur(${(overLight ? 12 : 4) + blurAmount * 32}px) saturate(${saturation}%)`,
     }
 
-    const outerShadow = overLight ? "0px 16px 70px rgba(0, 0, 0, 0.75)" : "0px 12px 40px rgba(0, 0, 0, 0.25)"
+    const outerShadow = overLight ? "0px 8px 24px rgba(0, 0, 0, 0.12)" : "0px 12px 40px rgba(0, 0, 0, 0.25)"
 
     return (
       <div
@@ -231,8 +231,8 @@ const GlassContainer = forwardRef<
             overflow: (style as React.CSSProperties).overflow ?? "hidden",
             transition: "all 0.2s ease-in-out",
             boxShadow: "none",
-            width: "100%",
-            height: "100%",
+            width: (style as React.CSSProperties).width ?? "fit-content",
+            height: (style as React.CSSProperties).height ?? "auto",
           }}
           onMouseEnter={onMouseEnter}
           onMouseLeave={onMouseLeave}
@@ -541,7 +541,7 @@ export default function LiquidGlass({
   const wrapperStyle: React.CSSProperties = {
     position: (style as React.CSSProperties).position || "relative",
     display: (style as React.CSSProperties).display ?? "inline-flex",
-    width: style.width ?? glassSize.width,
+    width: style.width ?? "fit-content",
     height: style.height,
     ...wrapperPosition,
     transform: callerTransform,
